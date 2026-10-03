@@ -165,7 +165,7 @@
     const card = E.CARDS[id];
     return `<div class="card c-${card.c} lv-${card.lv} ${extra}">` +
       `<div class="card-top"><span class="pts">${card.p || ''}</span>${gem(card.c, 'bonus')}</div>` +
-      art(card) + costHTML(card.cost) +
+      art(card) + `<span class="plain-name">${E.NAMES[card.c]}</span>` + costHTML(card.cost) +
       `</div>`;
   }
   function backHTML(lv, count, extra = '') {

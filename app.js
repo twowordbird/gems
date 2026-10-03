@@ -299,6 +299,7 @@
         ${resumeLocal ? `<button class="btn ghost" data-act="resume-local">Resume the pass &amp; play game</button>` : ''}
         ${lastRoom && !app.prefill ? `<button class="btn ghost" data-act="rejoin" data-code="${esc(lastRoom)}">Rejoin table ${esc(lastRoom)}</button>` : ''}
         <button class="btn ghost" data-act="rules">How to play</button>
+        <div class="home-look"><span>Look</span>${lookSeg()}</div>
       </div>
     </div>`;
   }
@@ -710,10 +711,12 @@
       `<li><span class="nm" style="--pc:${SEAT_COLORS[i]}"><i class="dot"></i>${esc(s.name)}</span><button class="btn small" data-act="claim" data-s="${i}">Play for ${esc(s.name)}</button></li>`)).join('') : '';
     const log = g ? g.log.slice(-12).reverse().map(e => `<li>${describe(e)}</li>`).join('') : '';
     return `<div class="menu">
-      <p class="eyebrow">Sparkles</p>
+      <p class="eyebrow">Look</p>
+      ${lookSeg()}
+      ${FX.plain ? '' : `<p class="eyebrow">Sparkles</p>
       <div class="seg" role="group" aria-label="Sparkle level">
         ${['Subtle', 'Sparkly', 'Maximum'].map((name, k) => `<button class="${lv === k ? 'on' : ''}" data-act="sparkle" data-l="${k}" aria-pressed="${lv === k}">${name}${k === 2 ? A.spark('inline') : ''}</button>`).join('')}
-      </div>
+      </div>`}
       <p class="eyebrow">Sound</p>
       <div class="seg" role="group" aria-label="Sound">
         <button class="${FX.sound ? 'on' : ''}" data-act="sound" data-on="1" aria-pressed="${FX.sound}">Chimes on</button>
@@ -728,6 +731,23 @@
         ${app.online ? '<button class="btn ghost" data-act="leave">Leave table</button>' : '<button class="btn ghost" data-act="home">Back to start (game is saved)</button>'}
       </div>
     </div>`;
+  }
+
+  function lookSeg() {
+    return `<div class="seg" role="group" aria-label="Look">
+        <button class="${FX.plain ? '' : 'on'}" data-act="look" data-plain="0" aria-pressed="${!FX.plain}">Jewel box</button>
+        <button class="${FX.plain ? 'on' : ''}" data-act="look" data-plain="1" aria-pressed="${FX.plain}">Plain</button>
+      </div>`;
+  }
+
+  // The plain look: grayscale, square corners, Times New Roman, no effects.
+  // It's per phone, so one person can go plain while others keep the sparkles.
+  function setPlain(on) {
+    FX.setPlain(on);
+    document.documentElement.classList.toggle('plain', on);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = on ? '#ffffff' : '#170c22';
+    store.set('plain', on);
   }
 
   function rulesSheet() {
@@ -1042,6 +1062,7 @@
       case 'dunpick': { const c = +d.c; if (app.discard[c] > 0) app.discard[c]--; renderSheet(); break; }
       case 'discard': { const gs = app.discard.slice(); app.discard = [0, 0, 0, 0, 0, 0]; act({ t: 'discard', g: gs }); break; }
       case 'pick-noble': act({ t: 'noble', id: +d.id }); break;
+      case 'look': setPlain(d.plain === '1'); render(); break;
       case 'sparkle': FX.setLevel(+d.l); store.set('sparkle', +d.l); FX.burstAt(el, { n: 30, sp: 200 }); renderSheet(); break;
       case 'sound': FX.setSound(d.on === '1'); store.set('sound', d.on === '1'); if (d.on === '1') FX.play('turn'); renderSheet(); break;
       case 'claim': {
@@ -1114,6 +1135,7 @@
 
   // ---------- boot ----------
   FX.setLevel(store.get('sparkle', 1));
+  setPlain(!!store.get('plain', false));
   FX.setSound(store.get('sound', true));
   const m = location.hash.match(/^#([A-Za-z]{4})$/);
   if (m && app.name) enterRoom(m[1].toUpperCase());

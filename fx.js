@@ -7,6 +7,7 @@
   const TINTS = ['#ffffff', '#ffffff', '#fff3c4', '#ffd66e', '#cfe0ff', '#ffc2dc', '#b9ffe2', '#e3d2ff'];
   const GEM_TINTS = ['#eef5ff', '#7ea6ff', '#5ff0b3', '#ff6d8c', '#d7c5f2', '#ffd66e'];
   let level = 1; // 0 subtle, 1 sparkly, 2 maximum
+  let plain = false; // the plain look turns every effect off
   let W = 0, H = 0, dpr = 1, ambient = [], parts = [], running = false, lastT = 0, lastBg = 0;
 
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -24,7 +25,7 @@
     seed();
   }
   function seed() {
-    const n = reduce ? 0 : [10, 28, 70][level];
+    const n = reduce || plain ? 0 : [10, 28, 70][level];
     ambient = Array.from({ length: n }, () => ({
       x: rand(0, W), y: rand(0, H), r: rand(1.5, level === 2 ? 6 : 4.2),
       ph: rand(0, 6.3), sp: rand(.5, 1.6), vy: -rand(3, 12), col: pick(TINTS),
@@ -86,6 +87,7 @@
   addEventListener('resize', resize);
 
   function burst(x, y, o = {}) {
+    if (plain) return;
     const mult = [0.45, 1, 2.3][level] * (reduce ? .25 : 1);
     const n = Math.max(1, Math.round((o.n || 16) * mult));
     const cols = o.colors || TINTS;
@@ -109,7 +111,7 @@
   }
 
   function rain(seconds = 4, colors) {
-    if (reduce) return;
+    if (reduce || plain) return;
     const end = performance.now() + seconds * 1000;
     const per = [3, 6, 12][level];
     const iv = setInterval(() => {
@@ -136,7 +138,7 @@
       const [fx, fy] = centerOf(from), [tx, ty] = centerOf(to);
       Object.assign(el.style, { width: w + 'px', height: h + 'px', left: (fx - w / 2) + 'px', top: (fy - h / 2) + 'px' });
       layer.appendChild(el);
-      if (reduce) { el.remove(); burst(tx, ty, { n: 4 }); return res(); }
+      if (reduce || plain) { el.remove(); burst(tx, ty, { n: 4 }); return res(); }
       const dx = tx - fx, dy = ty - fy;
       const s1 = o.s1 || Math.max(.35, Math.min(1, Math.min(to.width / w, to.height / h)));
       const dur = o.dur || 620;
@@ -213,6 +215,8 @@
     burst, burstAt, rain, fly, play, reduce,
     get level() { return level; },
     setLevel(l) { level = l; seed(); },
+    get plain() { return plain; },
+    setPlain(on) { plain = !!on; if (plain) parts = []; seed(); },
     get sound() { return soundOn; },
     setSound(on) { soundOn = on; },
   };

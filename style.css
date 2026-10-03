@@ -452,3 +452,107 @@ h2, h3 { text-wrap: balance; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+.home-look { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--faint); }
+.home-look .seg { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(0,0,0,.3); }
+.plain-name { display: none; }
+
+/* ---------- the plain look: grayscale, square, Times New Roman, still ----------
+   Colors drop out, so every cost and count also carries its gem's letter. */
+html.plain {
+  --velvet: #fff; --ink: #000; --muted: #333; --faint: #666; --line: #999; --line-2: #666;
+  --gold: #000; --gold-hi: #000; --ok: #000; --warn: #000;
+  color-scheme: light; background: #fff;
+}
+html.plain body { background: #fff; color: #000; }
+html.plain *, html.plain *::before, html.plain *::after {
+  font-family: 'Times New Roman', Times, serif !important;
+  font-style: normal !important; letter-spacing: normal !important; text-transform: none !important;
+  text-shadow: none !important; border-radius: 0 !important; box-shadow: none !important;
+  animation: none !important; transition: none !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
+html.plain #bg-fx, html.plain #fg-fx, html.plain .crest, html.plain .spark, html.plain .wordmark .gl,
+html.plain .slot.afford::after, html.plain .res-tiara, html.plain .card .art { display: none !important; }
+html.plain .gem, html.plain .tiara { filter: grayscale(1) !important; }
+
+html.plain .btn { clip-path: none; background: #e8e8e8; color: #000; border: 1px solid #000; font-weight: bold; }
+html.plain .btn.gold { background: #d0d0d0; }
+html.plain .btn.ghost { background: #fff; color: #000; border-color: #888; }
+html.plain .btn[disabled] { filter: none; background: #f4f4f4; color: #888; border-color: #bbb; }
+html.plain .btn:focus-visible { box-shadow: none; outline: 2px solid #000; outline-offset: 2px; }
+html.plain input { background: #fff !important; color: #000 !important; border: 1px solid #000 !important; }
+html.plain .wordmark { font-weight: bold; font-size: 64px; }
+html.plain .wordmark span { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: #000; filter: none; }
+html.plain .mini-top .wm, html.plain .topbar .wm { color: #000; font-weight: bold; }
+html.plain .back-btn, html.plain .menu-btn, html.plain .sheet .close { background: #eee; color: #000; border: 1px solid #999; }
+html.plain .home-look .seg, html.plain .seg { background: #eee; }
+html.plain .seg button { color: #000; }
+html.plain .seg button.on { background: #000; color: #fff; }
+
+html.plain .code span { clip-path: none; background: #fff; color: #000; border: 1px solid #000; font-weight: bold; }
+html.plain .qr { border: 1px solid #000; }
+html.plain .url { background: #f4f4f4; color: #000; border-color: #999; }
+html.plain .seats li { background: #fff; border-color: #000; }
+html.plain .seats li.open { border-color: #999; }
+html.plain .dot, html.plain .chip .nm::before { background: #000 !important; }
+html.plain .notice { background: #f4f4f4; border-color: #000; }
+html.plain .net.wait i, html.plain .net.down i { background: #aaa; }
+html.plain .topbar .net span { display: inline; }
+
+html.plain .topbar { background: #fff; border-bottom: 1px solid #000; }
+html.plain .chip { background: #fff; border: 1px solid #999; }
+html.plain .chip.turn { background: #f0f0f0; border: 2px solid #000; }
+html.plain .chip .pt, html.plain .hoard .score, html.plain .noble .pts, html.plain .card .pts, html.plain .card.back .roman { color: #000; font-weight: bold; }
+html.plain .chip.me .nm { text-decoration-color: #000; }
+html.plain .status { background: #f0f0f0; border-left-color: #000; color: #000; }
+html.plain .status .final { background: #000; color: #fff; }
+
+html.plain .noble { background: #fff; border: 1px solid #000; }
+html.plain .card { background: #fff; border: 1px solid #000; color: #000; }
+html.plain .card.lv-3 { border: 3px double #000; }
+html.plain .card.back { background: #ddd; border: 1px solid #000; }
+html.plain .card.back .left { background: #fff; color: #000; border: 1px solid #000; }
+html.plain .card.empty { background: #fafafa; border: 1px dashed #999; }
+html.plain .slot.afford .card { border: 3px solid #000; }
+html.plain .plain-name { display: block; grid-area: art; align-self: center; justify-self: center; font-size: clamp(8px, 2.6vw, 12px); color: #000; }
+
+html.plain .pip, html.plain .rq, html.plain .bns i, html.plain .bn {
+  display: flex; align-items: center; justify-content: center;
+  background: #fff !important; color: #000 !important; border: 1px solid #000; font-weight: bold;
+}
+html.plain .pip::after, html.plain .rq::after, html.plain .bns i::after, html.plain .bn::after { font-size: .72em; font-weight: normal; }
+html.plain .pip.c-0::after, html.plain .rq.c-0::after, html.plain .bns i.c-0::after, html.plain .c-0 > .bn::after { content: 'D'; }
+html.plain .pip.c-1::after, html.plain .rq.c-1::after, html.plain .bns i.c-1::after, html.plain .c-1 > .bn::after { content: 'S'; }
+html.plain .pip.c-2::after, html.plain .rq.c-2::after, html.plain .bns i.c-2::after, html.plain .c-2 > .bn::after { content: 'E'; }
+html.plain .pip.c-3::after, html.plain .rq.c-3::after, html.plain .bns i.c-3::after, html.plain .c-3 > .bn::after { content: 'R'; }
+html.plain .pip.c-4::after, html.plain .rq.c-4::after, html.plain .bns i.c-4::after, html.plain .c-4 > .bn::after { content: 'O'; }
+html.plain .bns i { font-size: 9px; }
+html.plain .bns i.zero { opacity: .35; }
+html.plain .bn.gold-note { border: 0; background: none !important; color: #666 !important; font-weight: normal; }
+
+html.plain .bank, html.plain .hoard { background: #fff; border: 1px solid #000; }
+html.plain .hoard.active { border: 2px solid #000; }
+html.plain .tok .n, html.plain .hg b { background: #fff; color: #000; border: 1px solid #000; }
+html.plain .tok .pick { background: #000; color: #fff; }
+html.plain .tok.picked { outline: 2px solid #000; }
+
+html.plain .backdrop, html.plain .results { background: rgba(0,0,0,.35); }
+html.plain .sheet { background: #fff; color: #000; border-top: 2px solid #000; }
+html.plain .sheet h3, html.plain .res-card h2 { font-weight: bold; }
+html.plain .costs .have.ok { color: #000; font-weight: bold; }
+html.plain .player-sheet h3 .pts { color: #000; }
+html.plain .log li { background: #f4f4f4; }
+html.plain .returning { border-color: #000; }
+html.plain .toast, html.plain .toast.big, html.plain .toast.turn { background: #fff; color: #000; border: 1px solid #000; }
+html.plain .toast.turn { font-size: 20px; font-weight: bold; }
+html.plain .res-card { background: #fff; border: 2px solid #000; }
+html.plain .res-card h2 { background: none; -webkit-background-clip: border-box; background-clip: border-box; color: #000; }
+html.plain .ranking li { background: #fff; border: 1px solid #999; border-left: 3px solid #000; }
+html.plain .ranking li.win { background: #eee; }
+html.plain .ranking .place { color: #000; }
+
+@supports (container-type: inline-size) {
+  html.plain .plain-name { font-size: 14cqw; }
+}
+html.plain .big-card, html.plain .big-noble, html.plain .flyer .gem { filter: none; }
