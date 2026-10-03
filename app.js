@@ -290,6 +290,7 @@
       else if (app.table.phase === 'lobby') html = lobbyHTML();
       else html = gameHTML();
       $('#app').innerHTML = html;
+      document.documentElement.classList.toggle('in-game', app.mode === 'room' && !!app.table && app.table.phase === 'play');
       renderSheet();
     });
     if (app.mode === 'room' && app.table && app.table.phase === 'lobby') drawQR();
@@ -452,6 +453,15 @@
       msg = `${esc(seatName(g.turn))} is choosing<span class="dots"><i>.</i><i>.</i><i>.</i></span>`;
       if (app.online && !amSeated()) msg += ' <span class="watch">You are watching. Open the menu to play for someone.</span>';
     }
+    if (canAct() && !g.pending && app.sel.length) {
+      const why = E.takeProblem(g, app.sel);
+      const after = E.tokenCount(g.players[g.turn]) + app.sel.length;
+      return `<div class="status mine tray" style="--pc:${SEAT_COLORS[g.turn]}">
+        <span class="msg why">${why ? esc(why) : after > 10 ? `You'll hand back ${after - 10} after` : 'Ready to take'}</span>
+        <button class="btn ghost small" data-act="clear">Clear</button>
+        <button class="btn gold small" data-act="take" ${why ? 'disabled' : ''}>Take ${app.sel.length}</button>
+      </div>`;
+    }
     return `<div class="status ${cls}" style="--pc:${SEAT_COLORS[g.turn]}">
       <span class="msg">${msg}</span>${g.final && !g.over ? '<span class="final">Final round</span>' : ''}${canUndo() ? '<button class="undo" data-act="undo">Undo</button>' : ''}
     </div>`;
@@ -487,19 +497,8 @@
       toks += `<button class="tok c-${c} ${picked[c] ? 'picked' : ''} ${g.bank[c] - picked[c] <= 0 ? 'empty' : ''}" data-act="bank" data-c="${c}" data-fx="bank-${c}" ${active ? '' : 'aria-disabled="true"'} aria-label="${E.NAMES[c]}, ${g.bank[c]} in the bank">
         ${A.gem(c)}<span class="n">${g.bank[c] - picked[c]}</span>${picked[c] ? `<span class="pick">+${picked[c]}</span>` : ''}</button>`;
     }
-    let tray = '';
-    if (app.sel.length) {
-      const why = E.takeProblem(g, app.sel);
-      const after = E.tokenCount(g.players[g.turn]) + app.sel.length;
-      tray = `<div class="tray">
-        <span class="why">${why ? esc(why) : after > 10 ? `You will hand back ${after - 10} after` : 'Ready'}</span>
-        <button class="btn ghost small" data-act="clear">Clear</button>
-        <button class="btn gold small" data-act="take" ${why ? 'disabled' : ''}>Take ${app.sel.length}</button>
-      </div>`;
-    } else if (active) {
-      tray = `<p class="hint">Tap the bank to pick 3 different gems, or 2 of a kind from a pile of 4 or more.</p>`;
-    }
-    return `<section class="bank" aria-label="Bank"><div class="toks">${toks}</div>${tray}</section>`;
+    const hint = active && !app.sel.length ? `<p class="hint">Tap the bank to pick 3 different gems, or 2 of a kind from a pile of 4 or more.</p>` : '';
+    return `<section class="bank" aria-label="Bank"><div class="toks">${toks}</div>${hint}</section>`;
   }
 
   function hoardHTML(i) {

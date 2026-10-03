@@ -440,6 +440,88 @@ html.plain .status .undo { background: #fff; color: #000; border: 1px solid #000
 .ranking .pt { font-weight: 800; }
 .ranking .cd { font-size: 12px; color: var(--faint); }
 
+/* ---------- one screen on phones ----------
+   Portrait phones tall enough (an iPhone XS in Safari is ~375x635) get the whole
+   game on one screen: no page scrolling, the board takes whatever height is
+   left, and nothing changes height mid-turn. Shorter screens keep scrolling. */
+.status.tray .msg { color: var(--muted); font-weight: 600; font-size: 13px; }
+.status.tray .btn.small { flex: none; min-height: 32px; padding: 4px 16px; }
+@media (max-width: 899px) and (min-height: 560px) {
+  html.in-game, html.in-game body { height: 100%; overflow: hidden; }
+  html.in-game #app { height: 100vh; height: 100dvh; min-height: 0; }
+  html.in-game .game {
+    height: 100%; max-width: 560px; padding: 6px 8px 8px; gap: 6px;
+    display: grid; grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas: "players" "patrons" "board" "status" "bank" "hoard";
+  }
+  html.in-game .game > .topbar, html.in-game .game > .side { display: contents; }
+  html.in-game .topbar .wm { display: none; }
+  /* the menu button rides at the right end of the status line, within thumb reach */
+  html.in-game .menu-btn { grid-area: status; justify-self: end; align-self: center; width: 36px; height: 36px; z-index: 1; }
+  html.in-game .topbar .room { grid-area: status; justify-self: end; align-self: start; font-size: 0; pointer-events: none; z-index: 2; }
+  html.in-game .topbar .room b, html.in-game .topbar .net span { display: none; }
+  html.in-game .players { grid-area: players; gap: 5px; }
+  html.in-game .chip { padding: 4px 6px 5px; gap: 3px; border-top: 3px solid var(--pc); }
+  html.in-game .chip .nm { font-size: 12.5px; }
+  html.in-game .chip .nm::before { display: none; }
+  html.in-game .chip .pt { font-size: 17px; }
+  html.in-game .bns i { height: 13px; font-size: 9.5px; }
+  html.in-game .status { grid-area: status; min-height: 38px; padding: 2px 42px 2px 10px; }
+  html.in-game .status .msg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
+  html.in-game .status .watch { display: none; }
+  html.in-game .patrons { grid-area: patrons; gap: 5px; }
+  html.in-game .patrons .nb { width: calc((100% - 20px) / 5); }
+  html.in-game .patrons .noble {
+    aspect-ratio: auto; height: 46px; padding: 3px 4px 4px;
+    display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: "pts tiara" "req req"; align-items: center; gap: 2px;
+  }
+  html.in-game .patrons .noble .pts { position: static; grid-area: pts; font-size: 15px; padding-left: 2px; }
+  html.in-game .patrons .noble .tiara { grid-area: tiara; width: auto; height: 20px; margin: 0 auto; }
+  html.in-game .patrons .req { grid-area: req; gap: 3px; }
+  html.in-game .patrons .rq { width: 17px; height: 15px; aspect-ratio: auto; font-size: 10px; }
+
+  /* the board fills the leftover height; cards stop growing past a 5:7 shape */
+  html.in-game .board {
+    grid-area: board; min-height: 0; gap: 5px; display: grid; grid-template-rows: repeat(3, minmax(0, 1fr));
+    max-height: calc((min(100vw, 560px) - 36px) / 4.55 * 4.2 + 10px);
+  }
+  html.in-game .row { grid-template-columns: minmax(0, .55fr) repeat(4, minmax(0, 1fr)); gap: 5px; min-height: 0; }
+  html.in-game .board .slot { height: 100%; min-height: 0; }
+  html.in-game .board .card {
+    aspect-ratio: auto; height: 100%;
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "top" "art" "cost"; padding: 4% 5% 5%;
+  }
+  html.in-game .board .card .art { width: 100%; height: 100%; max-height: none; margin: 0; align-self: stretch; }
+  html.in-game .board .card .cost { flex-direction: row; gap: 3%; align-self: end; }
+  html.in-game .board .card .pip { width: 22%; }
+  html.in-game .board .card .plain-name { align-self: center; }
+  html.in-game .board .card.back .roman { font-size: max(13px, 36cqw); }
+  html.in-game .board .card.back .left { font-size: max(10px, 22cqw); padding: 1px 5px; }
+  html.in-game .board .slot.afford::after { top: 6%; bottom: auto; right: auto; left: 41%; width: 18%; }
+
+  html.in-game .bank { grid-area: bank; padding: 5px 6px; gap: 0; }
+  html.in-game .bank .hint { display: none; }
+  html.in-game .bank .tok { width: 46px; justify-self: center; padding: 6%; }
+  html.in-game .bank .tok .n { min-width: 19px; height: 19px; font-size: 12px; }
+
+  html.in-game .hoard { grid-area: hoard; padding: 6px 8px 8px; gap: 5px; }
+  html.in-game .hoard .who { font-size: 14.5px; }
+  html.in-game .hoard .score { font-size: 22px; }
+  html.in-game .hold { gap: 4px; }
+  html.in-game .hc { gap: 3px; }
+  html.in-game .hg { width: 32px; }
+  html.in-game .hg b { min-width: 17px; height: 17px; font-size: 11px; }
+  html.in-game .bn { min-width: 22px; height: 18px; font-size: 12px; }
+  html.in-game .legend { display: none; }
+  html.in-game .hoard .extras { height: 50px; min-height: 50px; flex-wrap: nowrap; overflow: hidden; align-items: center; gap: 6px; }
+  html.in-game .hoard .mini, html.in-game .hoard .mini-noble { width: 36px; }
+  html.in-game .hoard .empty-note { font-size: 12px; }
+  html.in-game #toasts { top: calc(52px + env(safe-area-inset-top, 0px)); }
+}
+
 /* ---------- wider screens: board left, players right ---------- */
 @media (min-width: 900px) {
   .game {
