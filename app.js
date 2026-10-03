@@ -34,6 +34,7 @@
     relay: null,
     net: { up: 0, total: 0 },
     sel: [],
+    undo: [],
     sheet: null,
     discard: [0, 0, 0, 0, 0, 0],
     prefill: '',
@@ -85,6 +86,8 @@
     if (!app.online) store.set('local', t);
     const g = t.game, pg = prev && prev.game;
     if (!g || !pg || prev.gameNo !== t.gameNo || pg.turn !== g.turn || !canAct() || g.pending) app.sel = [];
+    const lastUndo = app.undo[app.undo.length - 1];
+    if (lastUndo && (!g || t.gameNo !== lastUndo.gameNo || (g.acts || 0) !== lastUndo.after)) app.undo = [];
     if (!g || !pg || pg.acts !== g.acts || prev.gameNo !== t.gameNo) {
       if (app.sheet && ['card', 'deck', 'res'].includes(app.sheet.k)) app.sheet = null;
     }
@@ -107,8 +110,23 @@
     let ng;
     try { ng = E.apply(g, a); } catch (err) { toast(esc(err.message), 'warn'); FX.play('warn'); return false; }
     app.sel = [];
+    app.undo.push({ gameNo: app.table.gameNo, before: g, after: ng.acts || 0 });
+    if (app.undo.length > 6) app.undo.shift();
     commit({ ...app.table, game: ng });
     return true;
+  }
+
+  // Undo: take back your own moves, as long as nobody has played since.
+  function canUndo() {
+    const g = G(), u = app.undo[app.undo.length - 1];
+    return !!(u && g && !g.over && app.table.gameNo === u.gameNo && (g.acts || 0) === u.after);
+  }
+  function undo() {
+    if (!canUndo()) return;
+    const u = app.undo.pop();
+    app.sheet = null;
+    commit({ ...app.table, game: u.before });
+    toast('Move taken back');
   }
 
   // ---------- online ----------
@@ -435,7 +453,7 @@
       if (app.online && !amSeated()) msg += ' <span class="watch">You are watching. Open the menu to play for someone.</span>';
     }
     return `<div class="status ${cls}" style="--pc:${SEAT_COLORS[g.turn]}">
-      <span class="msg">${msg}</span>${g.final && !g.over ? '<span class="final">Final round</span>' : ''}
+      <span class="msg">${msg}</span>${g.final && !g.over ? '<span class="final">Final round</span>' : ''}${canUndo() ? '<button class="undo" data-act="undo">Undo</button>' : ''}
     </div>`;
   }
 
@@ -541,12 +559,15 @@
     const g = G();
     let spec = app.sheet, forced = false;
     if (g && !g.over && canAct() && g.pending) { spec = { k: g.pending.k === 'noble' ? 'choose' : 'discard' }; forced = true; }
-    if (!spec || (!g && !['rules', 'menu'].includes(spec.k))) { root.innerHTML = ''; root.dataset.k = ''; return; }
+    const shut = () => { root.innerHTML = ''; root.dataset.k = ''; document.documentElement.classList.remove('sheet-open'); };
+    if (!spec || (!g && !['rules', 'menu'].includes(spec.k))) return shut();
     const body = sheetBody(spec);
-    if (!body) { app.sheet = null; root.innerHTML = ''; root.dataset.k = ''; return; }
+    if (!body) { app.sheet = null; return shut(); }
     const key = JSON.stringify(spec);
     const fresh = root.dataset.k !== key;
+    if (fresh) shownAt = performance.now();
     root.dataset.k = key;
+    document.documentElement.classList.add('sheet-open');
     root.innerHTML = `<div class="backdrop ${fresh ? 'in' : ''}" ${forced ? '' : 'data-act="close"'}></div>
       <div class="sheet ${fresh ? 'in' : ''}" role="dialog" aria-modal="true">
         ${forced ? '' : '<button class="close" data-act="close" aria-label="Close">×</button>'}
@@ -600,15 +621,17 @@
     const mayAct = canAct() && !g.pending && (owner == null || owner === g.turn);
     let buttons = '';
     if (mayAct) {
-      if (pay) buttons += `<button class="btn gold big" data-act="buy">Buy it <span class="pay">pay ${gemsLine(pay)}</span></button>`;
+      // Side by side, Reserve on the left and Buy on the right: if the sheet
+      // jumps vertically under a thumb, it can't turn a Buy into a Reserve.
+      if (owner == null) {
+        const full = p.reserved.length >= E.MAX_RESERVED;
+        buttons += `<button class="btn act-reserve" data-act="reserve" ${full ? 'disabled' : ''}><b>Reserve</b><small>${full ? 'already holding 3' : g.bank[5] ? '+1 gold' : 'no gold left'}</small></button>`;
+      }
+      if (pay) buttons += `<button class="btn gold act-buy" data-act="buy"><b>Buy</b><small class="pay">pay ${gemsLine(pay)}</small></button>`;
       else {
         const sf = E.shortfall(p, id);
         const missing = sf.short.reduce((a, x) => a + x, 0) - sf.gold;
-        buttons += `<button class="btn big" disabled>Need ${missing} more gem${missing === 1 ? '' : 's'}</button>`;
-      }
-      if (owner == null) {
-        const full = p.reserved.length >= E.MAX_RESERVED;
-        buttons += `<button class="btn big" data-act="reserve" ${full ? 'disabled' : ''}>${full ? 'You already hold 3 reserved' : `Reserve it${g.bank[5] ? ' and take 1 gold' : ' (no gold left)'}`}</button>`;
+        buttons += `<button class="btn act-buy" disabled><b>Can't buy yet</b><small>need ${missing} more gem${missing === 1 ? '' : 's'}</small></button>`;
       }
     } else if (!g.over) {
       buttons = `<p class="note">${owner != null && !mine(owner) ? `${esc(seatName(owner))} reserved this card.` : 'You can buy or reserve this on your turn.'}</p>`;
@@ -622,7 +645,7 @@
         ${costRows(p, id)}
       </div>
     </div>
-    <div class="sheet-actions">${buttons}</div>`;
+    <div class="sheet-actions ${mayAct ? 'pair' : ''}">${buttons}</div>`;
   }
 
   function deckSheet(lv) {
@@ -815,6 +838,7 @@
     if (!ng) return;
     if (!pg || prev.gameNo !== t.gameNo) { dealIn(); return; }
     const fresh = (ng.acts || 0) - (pg.acts || 0);
+    if (fresh < 0 && !mine(ng.turn)) toast(`${esc(seatName(ng.turn))} took back a move`);
     if (fresh <= 0) return;
     const entries = ng.log.slice(-Math.min(fresh, ng.log.length));
     const vs = viewSeat();
@@ -982,10 +1006,20 @@
     catch (e) { toast(`Table code: <b>${esc(app.room)}</b>`); }
   }
 
+  // Ignore game-changing taps that land right after a sheet appeared or the
+  // page moved (scrolling, the browser toolbar showing or hiding): the button
+  // under the finger may not be the one the player was aiming for.
+  let shownAt = 0, movedAt = 0;
+  const moved = () => { movedAt = performance.now(); };
+  addEventListener('scroll', moved, { passive: true });
+  if (window.visualViewport) visualViewport.addEventListener('resize', moved);
+  const GUARDED = new Set(['buy', 'reserve', 'reserve-blind', 'take', 'discard', 'pick-noble']);
+
   document.addEventListener('click', e => {
     const el = e.target.closest('[data-act]');
     if (!el || el.disabled) return;
     const d = el.dataset;
+    if (GUARDED.has(d.act) && performance.now() - Math.max(shownAt, movedAt) < 450) return;
     const g = G();
     switch (d.act) {
       case 'create': createTable(); break;
@@ -1071,6 +1105,7 @@
       case 'dunpick': { const c = +d.c; if (app.discard[c] > 0) app.discard[c]--; renderSheet(); break; }
       case 'discard': { const gs = app.discard.slice(); app.discard = [0, 0, 0, 0, 0, 0]; act({ t: 'discard', g: gs }); break; }
       case 'pick-noble': act({ t: 'noble', id: +d.id }); break;
+      case 'undo': undo(); break;
       case 'look': setPlain(d.plain === '1'); render(); break;
       case 'awake': store.set('awake', d.on === '1'); if (d.on === '1') keepAwake(); else if (wake) { wake.release().catch(() => {}); wake = null; } renderSheet(); break;
       case 'sparkle': FX.setLevel(+d.l); store.set('sparkle', +d.l); FX.burstAt(el, { n: 30, sp: 200 }); renderSheet(); break;
