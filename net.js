@@ -42,7 +42,7 @@
       try {
         client = window.mqtt.connect(url, {
           clientId: 'gems_' + Math.random().toString(36).slice(2, 12),
-          clean: true, keepalive: 25, reconnectPeriod: 2500, connectTimeout: 9000,
+          clean: true, keepalive: 60, reconnectPeriod: 2500, connectTimeout: 9000,
           protocolVersion: 4, resubscribe: true,
         });
       } catch (e) { return; }

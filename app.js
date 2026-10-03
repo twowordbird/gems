@@ -79,6 +79,7 @@
   function setTable(t) {
     const prev = app.table;
     const before = snapshot();
+    FX.wake();
     const wasSeated = prev && amSeated();
     app.table = t;
     if (!app.online) store.set('local', t);
@@ -127,6 +128,7 @@
     },
     status(up, total) {
       app.net = { up, total };
+      if (up) app.everUp = true;
       const el = $('#net');
       if (el) el.outerHTML = netHTML();
     },
@@ -148,12 +150,14 @@
     app.kicked = false;
     app.sheet = null;
     app.waitSince = Date.now();
+    app.everUp = false;
     store.set('room', code);
     history.replaceState(null, '', location.pathname + location.search + '#' + code);
     app.relay = new NET.Relay(code, handlers);
     if (initial) setTable(initial);
     else render();
     setTimeout(() => { if (app.mode === 'room' && !app.table) render(); }, 8000);
+    setTimeout(() => { if (app.relay) handlers.status(app.relay.up, app.relay.links.length); }, 6500);
   }
 
   function leaveRoom() {
@@ -321,7 +325,7 @@
   function netHTML() {
     if (!app.online) return '<span id="net" hidden></span>';
     const { up, total } = app.net;
-    const cls = up ? 'up' : (Date.now() - app.waitSince > 6000 ? 'down' : 'wait');
+    const cls = up ? 'up' : (app.everUp || Date.now() - app.waitSince > 6000 ? 'down' : 'wait');
     const text = up ? (up === total ? 'Live' : 'Live (backup relay down)') : (total === 0 ? 'Relay unavailable' : cls === 'down' ? 'Reconnecting…' : 'Connecting…');
     return `<span id="net" class="net ${cls}" title="${esc(text)}"><i></i><span>${esc(text)}</span></span>`;
   }
@@ -717,6 +721,11 @@
       <div class="seg" role="group" aria-label="Sparkle level">
         ${['Subtle', 'Sparkly', 'Maximum'].map((name, k) => `<button class="${lv === k ? 'on' : ''}" data-act="sparkle" data-l="${k}" aria-pressed="${lv === k}">${name}${k === 2 ? A.spark('inline') : ''}</button>`).join('')}
       </div>`}
+      <p class="eyebrow">Screen</p>
+      <div class="seg" role="group" aria-label="Screen">
+        <button class="${store.get('awake', false) ? '' : 'on'}" data-act="awake" data-on="0" aria-pressed="${!store.get('awake', false)}">Sleeps as usual</button>
+        <button class="${store.get('awake', false) ? 'on' : ''}" data-act="awake" data-on="1" aria-pressed="${store.get('awake', false)}">Stays on</button>
+      </div>
       <p class="eyebrow">Sound</p>
       <div class="seg" role="group" aria-label="Sound">
         <button class="${FX.sound ? 'on' : ''}" data-act="sound" data-on="1" aria-pressed="${FX.sound}">Chimes on</button>
@@ -1063,6 +1072,7 @@
       case 'discard': { const gs = app.discard.slice(); app.discard = [0, 0, 0, 0, 0, 0]; act({ t: 'discard', g: gs }); break; }
       case 'pick-noble': act({ t: 'noble', id: +d.id }); break;
       case 'look': setPlain(d.plain === '1'); render(); break;
+      case 'awake': store.set('awake', d.on === '1'); if (d.on === '1') keepAwake(); else if (wake) { wake.release().catch(() => {}); wake = null; } renderSheet(); break;
       case 'sparkle': FX.setLevel(+d.l); store.set('sparkle', +d.l); FX.burstAt(el, { n: 30, sp: 200 }); renderSheet(); break;
       case 'sound': FX.setSound(d.on === '1'); store.set('sound', d.on === '1'); if (d.on === '1') FX.play('turn'); renderSheet(); break;
       case 'claim': {
@@ -1112,7 +1122,7 @@
   // Keep the screen awake while a game is on, and catch up after the phone sleeps.
   let wake = null;
   async function keepAwake() {
-    if (wake || !('wakeLock' in navigator) || document.visibilityState !== 'visible' || !app.table) return;
+    if (wake || !store.get('awake', false) || !('wakeLock' in navigator) || document.visibilityState !== 'visible' || !app.table) return;
     try { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } catch (e) { /* denied */ }
   }
   document.addEventListener('pointerdown', keepAwake, { passive: true });
@@ -1123,7 +1133,6 @@
       keepAwake();
     }
   });
-  setInterval(() => { if (app.online) handlers.status(app.relay ? app.relay.up : 0, app.relay ? app.relay.links.length : 0); }, 3000);
 
   window.addEventListener('hashchange', () => {
     const m = location.hash.match(/^#([A-Za-z]{4})$/);

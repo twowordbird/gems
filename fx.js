@@ -9,19 +9,25 @@
   let level = 1; // 0 subtle, 1 sparkly, 2 maximum
   let plain = false; // the plain look turns every effect off
   let W = 0, H = 0, dpr = 1, ambient = [], parts = [], running = false, lastT = 0, lastBg = 0;
+  let fgDirty = false, bgDirty = false;
+  // Battery: the backdrop twinkles at ~15 fps, and only for a while after the
+  // last tap or move; then it fades out and the loop stops. Maximum keeps it on.
+  let awakeUntil = 0;
+  const AWAKE_MS = 20000, FADE_MS = 1500, BG_FRAME_MS = 66;
 
   const rand = (a, b) => a + Math.random() * (b - a);
   const pick = a => a[Math.floor(Math.random() * a.length)];
 
+  function size(c, ctx, scale) {
+    c.width = Math.round(W * scale); c.height = Math.round(H * scale);
+    c.style.width = W + 'px'; c.style.height = H + 'px';
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  }
   function resize() {
     dpr = Math.min(2, window.devicePixelRatio || 1);
     W = innerWidth; H = innerHeight;
-    for (const c of [bg, fg]) {
-      c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
-      c.style.width = W + 'px'; c.style.height = H + 'px';
-    }
-    bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    size(bg, bctx, 1);   // soft twinkles don't need retina pixels
+    size(fg, fctx, dpr);
     seed();
   }
   function seed() {
@@ -51,37 +57,55 @@
     ctx.restore();
   }
 
+  function ambientAlpha(now) {
+    if (!ambient.length) return 0;
+    if (level === 2) return 1;
+    return Math.max(0, Math.min(1, (awakeUntil - now) / FADE_MS));
+  }
+
   function frame(t) {
+    running = false;
+    if (document.hidden) return;
     const dt = Math.min(.05, (t - (lastT || t)) / 1000);
     lastT = t;
-    if (document.hidden) { running = false; return; }
-    // Ambient twinkles on the back canvas at ~30fps.
-    if (t - lastBg > 32) {
-      lastBg = t;
-      bctx.clearRect(0, 0, W, H);
-      for (const s of ambient) {
-        s.y += s.vy * dt * 2;
-        if (s.y < -10) { s.y = H + 10; s.x = rand(0, W); }
-        const tw = Math.max(0, Math.sin(s.ph + t / 1000 * s.sp * 2.2));
-        star(bctx, s.x, s.y, s.r * (.4 + tw), tw ** 3 * .85, s.col, 0);
+    const fade = ambientAlpha(t);
+    if (fade > 0) {
+      if (t - lastBg >= BG_FRAME_MS - 6) {
+        const bdt = Math.min(.2, (t - (lastBg || t)) / 1000);
+        lastBg = t;
+        bctx.clearRect(0, 0, W, H);
+        for (const s of ambient) {
+          s.y += s.vy * bdt * 2;
+          if (s.y < -10) { s.y = H + 10; s.x = rand(0, W); }
+          const tw = Math.max(0, Math.sin(s.ph + t / 1000 * s.sp * 2.2));
+          star(bctx, s.x, s.y, s.r * (.4 + tw), tw ** 3 * .85 * fade, s.col, 0);
+        }
+        bgDirty = true;
       }
+    } else if (bgDirty) { bctx.clearRect(0, 0, W, H); bgDirty = false; }
+    if (parts.length || fgDirty) {
+      fctx.clearRect(0, 0, W, H);
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const p = parts[i];
+        p.life += dt;
+        if (p.life >= p.max) { parts.splice(i, 1); continue; }
+        p.vx *= (1 - 1.8 * dt); p.vy = p.vy * (1 - 1.8 * dt) + p.g * dt;
+        p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+        const k = p.life / p.max;
+        const tw = .65 + .35 * Math.sin(p.life * 22 + p.ph);
+        star(fctx, p.x, p.y, p.r * (k < .2 ? k / .2 : 1 - (k - .2) * .7), (1 - k) * tw, p.col, p.rot);
+      }
+      fgDirty = parts.length > 0;
     }
-    fctx.clearRect(0, 0, W, H);
-    for (let i = parts.length - 1; i >= 0; i--) {
-      const p = parts[i];
-      p.life += dt;
-      if (p.life >= p.max) { parts.splice(i, 1); continue; }
-      p.vx *= (1 - 1.8 * dt); p.vy = p.vy * (1 - 1.8 * dt) + p.g * dt;
-      p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
-      const k = p.life / p.max;
-      const tw = .65 + .35 * Math.sin(p.life * 22 + p.ph);
-      star(fctx, p.x, p.y, p.r * (k < .2 ? k / .2 : 1 - (k - .2) * .7), (1 - k) * tw, p.col, p.rot);
-    }
-    if (parts.length || ambient.length) requestAnimationFrame(frame);
-    else { running = false; bctx.clearRect(0, 0, W, H); }
+    if (parts.length || fgDirty) { running = true; requestAnimationFrame(frame); }
+    else if (fade > 0 || bgDirty) { running = true; setTimeout(() => requestAnimationFrame(frame), BG_FRAME_MS); }
   }
   function kick() {
     if (!running && !document.hidden) { running = true; lastT = 0; requestAnimationFrame(frame); }
+  }
+  function wake() {
+    awakeUntil = Math.max(awakeUntil, performance.now() + AWAKE_MS);
+    kick();
   }
   document.addEventListener('visibilitychange', kick);
   addEventListener('resize', resize);
@@ -100,7 +124,7 @@
       });
     }
     if (parts.length > 900) parts.splice(0, parts.length - 900);
-    kick();
+    wake();
   }
   function centerOf(r) { return [r.left + r.width / 2, r.top + r.height / 2]; }
   function burstAt(el, o) {
@@ -167,6 +191,7 @@
   // Taps leave a little glitter.
   addEventListener('pointerdown', e => {
     unlock();
+    wake();
     if (level === 2) burst(e.clientX, e.clientY, { n: 4, sp: 110, g: 60 });
     else if (level === 1) burst(e.clientX, e.clientY, { n: 3, sp: 70, g: 40, r: 5 });
   }, { passive: true });
@@ -212,7 +237,7 @@
 
   resize();
   window.GemsFX = {
-    burst, burstAt, rain, fly, play, reduce,
+    burst, burstAt, rain, fly, play, reduce, wake,
     get level() { return level; },
     setLevel(l) { level = l; seed(); },
     get plain() { return plain; },
