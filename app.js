@@ -565,7 +565,7 @@
     let spec = app.sheet, forced = false;
     if (g && !g.over && canAct() && g.pending) { spec = { k: g.pending.k === 'noble' ? 'choose' : 'discard' }; forced = true; }
     const shut = () => { root.innerHTML = ''; root.dataset.k = ''; document.documentElement.classList.remove('sheet-open'); };
-    if (!spec || (!g && !['rules', 'menu'].includes(spec.k))) return shut();
+    if (!spec || (!g && !['rules', 'menu', 'reactions'].includes(spec.k))) return shut();
     const body = sheetBody(spec);
     if (!body) { app.sheet = null; return shut(); }
     const key = JSON.stringify(spec);
@@ -596,6 +596,7 @@
       case 'choose': return nobleChoiceBody();
       case 'menu': return menuSheet();
       case 'rules': return rulesSheet();
+      case 'reactions': return reactionsSheet();
     }
     return '';
   }
@@ -760,6 +761,8 @@
         <button class="${FX.sound ? 'on' : ''}" data-act="sound" data-on="1" aria-pressed="${FX.sound}">Chimes on</button>
         <button class="${FX.sound ? '' : 'on'}" data-act="sound" data-on="0" aria-pressed="${!FX.sound}">Quiet</button>
       </div>
+      <p class="eyebrow">Your reactions</p>
+      <div class="share-row"><span class="re-preview">${myReactions().filter(usable).map(r => esc(tidy(r[0]) || '💬')).join(' ') || 'None set'}</span><button class="btn small" data-act="react-edit">Edit</button></div>
       ${app.online && t ? `<p class="eyebrow">Table ${esc(app.room)}</p>
         <div class="share-row"><code class="url">${esc(shareURL())}</code><button class="btn small" data-act="share">Share</button></div>` : ''}
       ${others ? `<p class="eyebrow">Someone's phone died?</p><ul class="claims">${others}</ul>` : ''}
@@ -966,25 +969,46 @@
 
   // ---------- reactions ----------
   // One button, pinned to the same corner in the lobby, the game and the
-  // results. A reaction goes to every phone at the table and floats up there.
+  // results. Each phone keeps its own five reactions (emoji + a few words) in
+  // the browser; a reaction carries its words, so everyone sees what you wrote.
+  const REACT_EMOJI_MAX = 8, REACT_TEXT_MAX = 30;
+  const clip = (s, n) => Array.from(String(s || '').replace(/[\u0000-\u001f\u007f]/g, '')).slice(0, n).join('');
+  const tidy = s => s.replace(/\s+/g, ' ').trim();
+  function myReactions() {
+    const saved = store.get('reactions', null);
+    const list = Array.isArray(saved) && saved.length === REACTIONS.length ? saved : REACTIONS;
+    return list.map(r => [clip(Array.isArray(r) ? r[0] : '', REACT_EMOJI_MAX), clip(Array.isArray(r) ? r[1] : '', REACT_TEXT_MAX)]);
+  }
+  const usable = ([e, t]) => !!(tidy(e) || tidy(t));
+
   function renderReact() {
     const root = $('#react-root');
     if (!root) return;
     if (app.mode !== 'room' || !app.table) { root.innerHTML = ''; app.reactOpen = false; return; }
-    const menu = app.reactOpen ? `<div class="react-catch" data-act="react-close"></div>
-      <div class="react-menu" role="menu" aria-label="Reactions">${REACTIONS.map(([e, t], k) =>
-        `<button role="menuitem" data-act="react-send" data-r="${k}"><span class="re">${e}</span><span>${t}</span></button>`).join('')}</div>` : '';
+    let menu = '';
+    if (app.reactOpen) {
+      const items = myReactions().map((r, k) => usable(r)
+        ? `<button role="menuitem" data-act="react-send" data-r="${k}">${tidy(r[0]) ? `<span class="re">${esc(tidy(r[0]))}</span>` : ''}<span>${esc(tidy(r[1]))}</span></button>` : '').join('');
+      menu = `<div class="react-catch" data-act="react-close"></div>
+      <div class="react-menu" role="menu" aria-label="Reactions">${items || '<p class="react-none">No reactions set yet.</p>'}
+        <button class="react-edit" role="menuitem" data-act="react-edit">Edit reactions</button></div>`;
+    }
     root.innerHTML = `${menu}<button class="react-fab ${app.reactOpen ? 'open' : ''}" data-act="react" aria-label="React" aria-expanded="${app.reactOpen}">${REACT_ICON}</button>`;
   }
 
   function sendReaction(k) {
-    if (!(k >= 0 && k < REACTIONS.length)) return;
+    const r = myReactions()[k];
     app.reactOpen = false;
     renderReact();
+    if (!r || !usable(r)) return;
     const now = Date.now();
     if (now - app.lastReact < 1200) return;
     app.lastReact = now;
-    const msg = { device: app.device, name: app.name, r: k, id: rid(8) };
+    const e = tidy(r[0]), t = tidy(r[1]);
+    const msg = { device: app.device, name: app.name, e, t, id: rid(8) };
+    // Phones that haven't reloaded only know the original five by number.
+    const orig = REACTIONS.findIndex(([oe, ot]) => oe === e && ot === t);
+    if (orig >= 0) msg.r = orig;
     showReaction(msg);
     if (app.online && app.relay) app.relay.send('react', msg);
   }
@@ -992,25 +1016,28 @@
   const seenReactions = [], reactTimes = {};
   function receiveReaction(m) {
     if (!m || typeof m.device !== 'string' || m.device.length > 40 || m.device === app.device) return;
-    if (!Number.isInteger(m.r) || m.r < 0 || m.r >= REACTIONS.length) return;
     if (typeof m.id !== 'string' || m.id.length > 16 || seenReactions.includes(m.id)) return;  // both relays deliver it
+    let e = typeof m.e === 'string' ? tidy(clip(m.e, REACT_EMOJI_MAX)) : '';
+    let t = typeof m.t === 'string' ? tidy(clip(m.t, REACT_TEXT_MAX)) : '';
+    if (!e && !t && Number.isInteger(m.r) && m.r >= 0 && m.r < REACTIONS.length) [e, t] = REACTIONS[m.r];
+    if (!e && !t) return;
     seenReactions.push(m.id);
     if (seenReactions.length > 60) seenReactions.shift();
-    const now = Date.now(), times = (reactTimes[m.device] || []).filter(t => now - t < 4000);
+    const now = Date.now(), times = (reactTimes[m.device] || []).filter(x => now - x < 4000);
     if (times.length >= 4) return;
     reactTimes[m.device] = [...times, now];
-    showReaction(m);
+    showReaction({ device: m.device, name: m.name, e, t });
   }
 
   function showReaction(m) {
-    const [emoji, text] = REACTIONS[m.r];
+    const emoji = m.e, text = m.t;
     const seat = seats().findIndex(s => s.device === m.device);
     const who = m.device === app.device ? (app.online ? 'You' : '') : seat >= 0 ? seats()[seat].name : (cleanName(m.name) || 'Someone');
     const box = $('#react-bubbles');
     const el = document.createElement('div');
     el.className = 'react-bubble';
     el.style.setProperty('--dx', Math.round(Math.random() * -60) + 'px');
-    el.innerHTML = `<span class="re">${emoji}</span><span class="rt">${who ? `<b>${esc(who)}</b>` : ''}<span>${text}</span></span>`;
+    el.innerHTML = `${emoji ? `<span class="re">${esc(emoji)}</span>` : ''}<span class="rt">${who ? `<b>${esc(who)}</b>` : ''}${text ? `<span>${esc(text)}</span>` : ''}</span>`;
     box.appendChild(el);
     while (box.children.length > 4) box.firstChild.remove();
     setTimeout(() => el.remove(), 3400);
@@ -1020,10 +1047,32 @@
     // In a game, the sender's chip shows the emoji too.
     const chip = seat >= 0 && $(`[data-fx="chip-${seat}"]`);
     if (chip) {
-      chip.dataset.react = emoji;
+      chip.dataset.react = emoji || '💬';
       chip.classList.remove('reacted'); void chip.offsetWidth; chip.classList.add('reacted');
       setTimeout(() => chip.classList.remove('reacted'), 2600);
     }
+  }
+
+  function reactionsSheet() {
+    const rows = myReactions().map(([e, t], k) => `<div class="re-row">
+        <input id="re-e-${k}" class="re-emoji" value="${esc(e)}" maxlength="16" autocomplete="off" aria-label="Reaction ${k + 1} emoji" placeholder="·">
+        <input id="re-t-${k}" class="re-text" value="${esc(t)}" maxlength="${REACT_TEXT_MAX}" autocomplete="off" aria-label="Reaction ${k + 1} words" placeholder="Leave empty to hide">
+      </div>`).join('');
+    return `<div class="reactions-edit">
+      <h3>Your reactions</h3>
+      <p class="sub">An emoji and a few words for each. They're saved on this phone, and everyone at the table sees what you send.</p>
+      <div class="re-list">${rows}</div>
+      <div class="sheet-actions">
+        <button class="btn gold" data-act="close">Done</button>
+        <button class="btn ghost" data-act="react-reset">Put back the originals</button>
+      </div>
+    </div>`;
+  }
+  function saveReactions() {
+    store.set('reactions', REACTIONS.map((_, k) => {
+      const e = document.getElementById('re-e-' + k), t = document.getElementById('re-t-' + k);
+      return [clip(e ? e.value : '', REACT_EMOJI_MAX), clip(t ? t.value : '', REACT_TEXT_MAX)];
+    }));
   }
 
   // ---------- toasts ----------
@@ -1177,6 +1226,8 @@
       case 'react': app.reactOpen = !app.reactOpen; renderReact(); break;
       case 'react-close': app.reactOpen = false; renderReact(); break;
       case 'react-send': sendReaction(+d.r); break;
+      case 'react-edit': app.reactOpen = false; renderReact(); openSheet({ k: 'reactions' }); break;
+      case 'react-reset': store.set('reactions', null); renderSheet(); toast('Reactions are back to the originals'); break;
       case 'look': setPlain(d.plain === '1'); render(); break;
       case 'awake': store.set('awake', d.on === '1'); if (d.on === '1') keepAwake(); else if (wake) { wake.release().catch(() => {}); wake = null; } renderSheet(); break;
       case 'sparkle': FX.setLevel(+d.l); store.set('sparkle', +d.l); FX.burstAt(el, { n: 30, sp: 200 }); renderSheet(); break;
@@ -1215,6 +1266,7 @@
   });
 
   document.addEventListener('input', e => {
+    if (/^re-[et]-\d$/.test(e.target.id)) saveReactions();
     if (e.target.id === 'code') {
       const v = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
       if (v !== e.target.value) e.target.value = v;
