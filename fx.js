@@ -226,7 +226,7 @@
   }
   const TUNES = {
     take: [2, 4, 6], two: [4, 4], buy: [0, 2, 4, 7], reserve: [5, 3], noble: [0, 2, 3, 4, 6, 7, 9, 11],
-    turn: [5, 8], win: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12], warn: [1, 0], tick: [7],
+    turn: [5, 8], react: [6, 9], win: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12], warn: [1, 0], tick: [7],
   };
   function play(kind) {
     if (!soundOn) return;

@@ -23,6 +23,8 @@
   const cleanName = s => String(s || '').replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16);
   const SEAT_COLORS = ['#ff8cc6', '#7fe0ff', '#ffd36e', '#b8a2ff'];
   const LEVEL = ['', 'Level I', 'Level II', 'Level III'];
+  const REACTIONS = [['👏', 'Nice move!'], ['😱', 'Nooo!'], ['😂', 'Ha!'], ['⏳', 'Hurry up!'], ['✨', 'So shiny!']];
+  const REACT_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H11l-4.2 3.6c-.5.4-1.3.1-1.3-.6V16A2.5 2.5 0 0 1 4 13.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 6.2Q12.4 9.1 15.2 9.5Q12.4 9.9 12 12.8Q11.6 9.9 8.8 9.5Q11.6 9.1 12 6.2Z" fill="currentColor"/></svg>';
 
   const app = {
     device: store.get('device') || (() => { const d = rid(12); store.set('device', d); return d; })(),
@@ -35,6 +37,8 @@
     net: { up: 0, total: 0 },
     sel: [],
     undo: [],
+    reactOpen: false,
+    lastReact: 0,
     sheet: null,
     discard: [0, 0, 0, 0, 0, 0],
     prefill: '',
@@ -140,6 +144,7 @@
       setTable(msg);
     },
     join(msg) { handleJoin(msg); },
+    react(msg) { receiveReaction(msg); },
     hello(msg, link) {
       if (!app.table || !amSeated() || !msg || msg.device === app.device) return;
       setTimeout(() => app.relay && app.table && app.relay.heal(link, app.table), 250 + Math.random() * 900);
@@ -292,6 +297,7 @@
       $('#app').innerHTML = html;
       document.documentElement.classList.toggle('in-game', app.mode === 'room' && !!app.table && app.table.phase === 'play');
       renderSheet();
+      renderReact();
     });
     if (app.mode === 'room' && app.table && app.table.phase === 'lobby') drawQR();
     updateTitle();
@@ -567,6 +573,7 @@
     if (fresh) shownAt = performance.now();
     root.dataset.k = key;
     document.documentElement.classList.add('sheet-open');
+    if (app.reactOpen) { app.reactOpen = false; renderReact(); }
     root.innerHTML = `<div class="backdrop ${fresh ? 'in' : ''}" ${forced ? '' : 'data-act="close"'}></div>
       <div class="sheet ${fresh ? 'in' : ''}" role="dialog" aria-modal="true">
         ${forced ? '' : '<button class="close" data-act="close" aria-label="Close">×</button>'}
@@ -957,6 +964,68 @@
     document.title = canAct() && document.hidden ? 'Your turn · Gems' : 'Gems';
   }
 
+  // ---------- reactions ----------
+  // One button, pinned to the same corner in the lobby, the game and the
+  // results. A reaction goes to every phone at the table and floats up there.
+  function renderReact() {
+    const root = $('#react-root');
+    if (!root) return;
+    if (app.mode !== 'room' || !app.table) { root.innerHTML = ''; app.reactOpen = false; return; }
+    const menu = app.reactOpen ? `<div class="react-catch" data-act="react-close"></div>
+      <div class="react-menu" role="menu" aria-label="Reactions">${REACTIONS.map(([e, t], k) =>
+        `<button role="menuitem" data-act="react-send" data-r="${k}"><span class="re">${e}</span><span>${t}</span></button>`).join('')}</div>` : '';
+    root.innerHTML = `${menu}<button class="react-fab ${app.reactOpen ? 'open' : ''}" data-act="react" aria-label="React" aria-expanded="${app.reactOpen}">${REACT_ICON}</button>`;
+  }
+
+  function sendReaction(k) {
+    if (!(k >= 0 && k < REACTIONS.length)) return;
+    app.reactOpen = false;
+    renderReact();
+    const now = Date.now();
+    if (now - app.lastReact < 1200) return;
+    app.lastReact = now;
+    const msg = { device: app.device, name: app.name, r: k, id: rid(8) };
+    showReaction(msg);
+    if (app.online && app.relay) app.relay.send('react', msg);
+  }
+
+  const seenReactions = [], reactTimes = {};
+  function receiveReaction(m) {
+    if (!m || typeof m.device !== 'string' || m.device.length > 40 || m.device === app.device) return;
+    if (!Number.isInteger(m.r) || m.r < 0 || m.r >= REACTIONS.length) return;
+    if (typeof m.id !== 'string' || m.id.length > 16 || seenReactions.includes(m.id)) return;  // both relays deliver it
+    seenReactions.push(m.id);
+    if (seenReactions.length > 60) seenReactions.shift();
+    const now = Date.now(), times = (reactTimes[m.device] || []).filter(t => now - t < 4000);
+    if (times.length >= 4) return;
+    reactTimes[m.device] = [...times, now];
+    showReaction(m);
+  }
+
+  function showReaction(m) {
+    const [emoji, text] = REACTIONS[m.r];
+    const seat = seats().findIndex(s => s.device === m.device);
+    const who = m.device === app.device ? (app.online ? 'You' : '') : seat >= 0 ? seats()[seat].name : (cleanName(m.name) || 'Someone');
+    const box = $('#react-bubbles');
+    const el = document.createElement('div');
+    el.className = 'react-bubble';
+    el.style.setProperty('--dx', Math.round(Math.random() * -60) + 'px');
+    el.innerHTML = `<span class="re">${emoji}</span><span class="rt">${who ? `<b>${esc(who)}</b>` : ''}<span>${text}</span></span>`;
+    box.appendChild(el);
+    while (box.children.length > 4) box.firstChild.remove();
+    setTimeout(() => el.remove(), 3400);
+    const fab = $('.react-fab');
+    if (fab) FX.burstAt(fab, { n: 14, sp: 140, up: 80 });
+    FX.play('react');
+    // In a game, the sender's chip shows the emoji too.
+    const chip = seat >= 0 && $(`[data-fx="chip-${seat}"]`);
+    if (chip) {
+      chip.dataset.react = emoji;
+      chip.classList.remove('reacted'); void chip.offsetWidth; chip.classList.add('reacted');
+      setTimeout(() => chip.classList.remove('reacted'), 2600);
+    }
+  }
+
   // ---------- toasts ----------
   function toast(html, kind = '') {
     const root = $('#toasts');
@@ -1105,6 +1174,9 @@
       case 'discard': { const gs = app.discard.slice(); app.discard = [0, 0, 0, 0, 0, 0]; act({ t: 'discard', g: gs }); break; }
       case 'pick-noble': act({ t: 'noble', id: +d.id }); break;
       case 'undo': undo(); break;
+      case 'react': app.reactOpen = !app.reactOpen; renderReact(); break;
+      case 'react-close': app.reactOpen = false; renderReact(); break;
+      case 'react-send': sendReaction(+d.r); break;
       case 'look': setPlain(d.plain === '1'); render(); break;
       case 'awake': store.set('awake', d.on === '1'); if (d.on === '1') keepAwake(); else if (wake) { wake.release().catch(() => {}); wake = null; } renderSheet(); break;
       case 'sparkle': FX.setLevel(+d.l); store.set('sparkle', +d.l); FX.burstAt(el, { n: 30, sp: 200 }); renderSheet(); break;

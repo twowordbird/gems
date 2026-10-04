@@ -522,6 +522,64 @@ html.plain .status .undo { background: #fff; color: #000; border: 1px solid #000
   html.in-game #toasts { top: calc(52px + env(safe-area-inset-top, 0px)); }
 }
 
+/* ---------- reactions: one button, same corner on every table screen ---------- */
+#react-root { position: relative; z-index: 47; }
+html.sheet-open #react-root { display: none; }
+.react-fab {
+  position: fixed; z-index: 48; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: #2b1606;
+  background: linear-gradient(180deg, #fff1b5, #f5c95b 45%, #d39a2c 85%);
+  box-shadow: 0 6px 18px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.6);
+}
+.react-fab svg { width: 26px; height: 26px; }
+.react-fab.open { background: linear-gradient(180deg, #4a3168, #352250); color: var(--gold-hi); }
+.react-fab:active { transform: scale(.94); }
+.react-catch { position: fixed; inset: 0; z-index: 46; background: rgba(8, 3, 14, .25); }
+.react-menu {
+  position: fixed; z-index: 48; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+}
+.react-menu button {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 16px 6px 10px; border-radius: 99px;
+  font-weight: 800; font-size: 15px; color: var(--ink); white-space: nowrap;
+  background: rgba(44, 26, 64, .97); box-shadow: 0 6px 18px rgba(0,0,0,.45), inset 0 0 0 1px var(--line-2);
+  animation: drop .22s cubic-bezier(.2, .9, .3, 1.2) both;
+}
+.react-menu button:nth-child(2) { animation-delay: .03s; } .react-menu button:nth-child(3) { animation-delay: .06s; }
+.react-menu button:nth-child(4) { animation-delay: .09s; } .react-menu button:nth-child(5) { animation-delay: .12s; }
+.react-menu .re { font-size: 22px; line-height: 1; }
+#react-bubbles { position: fixed; z-index: 49; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(70px + env(safe-area-inset-bottom, 0px)); width: 0; height: 0; pointer-events: none; }
+.react-bubble {
+  position: absolute; right: 0; bottom: 0; display: flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 99px;
+  white-space: nowrap; background: rgba(44, 26, 64, .96); box-shadow: 0 8px 22px rgba(0,0,0,.5), inset 0 0 0 1px var(--gold);
+  animation: floatup 3.4s cubic-bezier(.2, .7, .3, 1) both;
+}
+.react-bubble .re { font-size: 30px; line-height: 1; }
+.react-bubble .rt { display: flex; flex-direction: column; line-height: 1.15; font-size: 14px; font-weight: 700; }
+.react-bubble .rt b { font-size: 12px; color: var(--gold-hi); }
+@keyframes floatup {
+  0% { opacity: 0; transform: translate(0, 20px) scale(.6); }
+  10% { opacity: 1; transform: translate(0, 0) scale(1.06); }
+  18% { transform: translate(0, -8px) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx, 0), -170px) scale(.96); }
+}
+.chip { position: relative; }
+.chip.reacted::after {
+  content: attr(data-react); position: absolute; right: -4px; bottom: -10px; font-size: 22px; line-height: 1; z-index: 2;
+  animation: pop 2.6s ease both; pointer-events: none;
+}
+@keyframes pop { 0% { transform: scale(0); } 12% { transform: scale(1.3); } 20% { transform: scale(1); } 85% { opacity: 1; } 100% { opacity: 0; } }
+/* keep table content clear of the corner button */
+.lobby { padding-bottom: 96px; }
+.results { padding-bottom: 84px; }
+html.in-game .hoard .extras { padding-right: 52px; }
+html.plain .react-fab, html.plain .react-menu button, html.plain .react-bubble { background: #fff; color: #000; border: 1px solid #000; }
+html.plain .react-fab.open { background: #000; color: #fff; }
+html.plain .react-catch { background: rgba(0,0,0,.15); }
+html.plain .react-bubble .rt b { color: #000; }
+html.plain .react-menu .re, html.plain .react-bubble .re, html.plain .chip.reacted::after { filter: grayscale(1); }
+
 /* ---------- wider screens: board left, players right ---------- */
 @media (min-width: 900px) {
   .game {

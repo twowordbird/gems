@@ -50,7 +50,7 @@
       client.on('connect', () => {
         link.up = true;
         link.seen = null;
-        client.subscribe([this.base + 'table', this.base + 'join', this.base + 'hello'], { qos: 1 });
+        client.subscribe([this.base + 'table', this.base + 'join', this.base + 'hello', this.base + 'react'], { qos: 1 });
         this.status();
         if (this.on.linkUp) this.on.linkUp(link);
       });
@@ -69,6 +69,7 @@
           this.on.table && this.on.table(msg, link);
         } else if (kind === 'join') this.on.join && this.on.join(msg);
         else if (kind === 'hello') this.on.hello && this.on.hello(msg, link);
+        else if (kind === 'react') this.on.react && this.on.react(msg);
       });
       this.links.push(link);
     }
